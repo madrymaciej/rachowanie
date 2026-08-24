@@ -80,7 +80,7 @@
   /* Klawiatura kalkulatorowa */
   #keypad { position:absolute; bottom:0; left:0; right:0; z-index:30;
     padding:6px 8px calc(6px + env(safe-area-inset-bottom)) 8px; max-width:250px;
-    margin:0 auto; }
+    margin:0 auto; touch-action:manipulation; }
   #displayBar { position:relative; height:42px; border-radius:8px; background:#bfe3e0;
     display:flex; align-items:center; justify-content:center; margin-bottom:5px; transition:background .12s; }
   #display { font-size:22px; color:#123a40; font-weight:600; transition:color .12s; }
@@ -90,12 +90,12 @@
   #clearBtn { position:absolute; right:10px; top:50%; transform:translateY(-50%);
     width:30px; height:30px; border-radius:50%; border:2px solid #5d8a8f; background:transparent;
     color:#5d8a8f; font-size:15px; line-height:1; cursor:pointer; touch-action:manipulation;
-    display:flex; align-items:center; justify-content:center; }
+    -webkit-touch-callout:none; display:flex; align-items:center; justify-content:center; }
   #clearBtn:active { background:rgba(93,138,143,.2); }
-  #pad { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; }
-  #pad button { padding:10px 0; font-size:18px; border:none; border-radius:4px;
+  #pad { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; touch-action:manipulation; }
+  #pad button { padding:15px 0; font-size:18px; border:none; border-radius:4px;
     background:#235058; color:#74c7e8; cursor:pointer; font-family:inherit;
-    touch-action:manipulation; -webkit-user-select:none; user-select:none; }
+    touch-action:manipulation; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   #pad button:active { background:#2e6770; }
   #pad button.enter { grid-column:span 2; background:#0f3138; color:#74c7e8; font-size:15px; font-weight:600; letter-spacing:1px; }
   #pad button.zero { background:#0f3138; }
@@ -522,12 +522,30 @@ function fastTap(el,fn){
 }
 
 // Numpad kalkulatorowy 7-8-9 / 4-5-6 / 1-2-3 / 0 + ENTER
+// Zdarzenia obsługiwane JEDNYM delegowanym nasłuchiwaczem na całym #pad —
+// bardziej niezawodne przy bardzo szybkich, kolejnych dotknięciach sąsiednich
+// przycisków niż osobny listener na każdym z nich.
 ["7","8","9","4","5","6","1","2","3","0","ENTER"].forEach(k=>{
-  const b=document.createElement("button"); b.textContent=k;
-  if(k==="ENTER"){ b.className="enter"; fastTap(b,submit); }
-  else { if(k==="0") b.className="zero"; fastTap(b,()=>typeDigit(k)); }
+  const b=document.createElement("button"); b.textContent=k; b.dataset.k=k;
+  if(k==="ENTER") b.className="enter"; else if(k==="0") b.className="zero";
   padEl.appendChild(b);
 });
+function handleKey(k){ if(k==="ENTER") submit(); else typeDigit(k); }
+let lastPadTouch=0;
+padEl.addEventListener("touchstart", e=>{
+  const btn=e.target.closest("button");
+  if(!btn) return;
+  e.preventDefault();
+  lastPadTouch=Date.now();
+  handleKey(btn.dataset.k);
+}, {passive:false});
+padEl.addEventListener("click", e=>{
+  const btn=e.target.closest("button");
+  if(!btn) return;
+  if(Date.now()-lastPadTouch<700) return;
+  handleKey(btn.dataset.k);
+});
+
 fastTap(document.getElementById("clearBtn"),clearAll);
 
 // Segmentowane przyciski ustawień
