@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Raindrops" />
+<meta name="mobile-web-app-capable" content="yes" />
+<title>Raindrops — trening liczenia</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:#020617; display:flex; align-items:center; justify-content:center;
+    user-select:none; -webkit-user-select:none; overflow:hidden;
+  }
+  #area { position:relative; width:100%; max-width:520px; height:100dvh; overflow:hidden;
+    background:linear-gradient(180deg,#0b1437 0%,#13235e 45%,#1d3a7a 100%);
+    padding-top:env(safe-area-inset-top); }
+  .mono { font-variant-numeric:tabular-nums; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+
+  /* HUD */
+  #hud { position:absolute; top:0; left:0; right:0; z-index:20;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; color:#e2e8f0; }
+  #score { font-size:22px; color:#67e8f9; letter-spacing:-.5px; }
+  #lives span { font-size:18px; transition:opacity .2s; }
+  #lives span.gone { opacity:.18; }
+  #modeLabel { position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    z-index:20; font-size:12px; color:#93c5fd; letter-spacing:.3px; }
+
+  /* Komunikat: utrata życia */
+  #lifeLost { position:absolute; top:34%; left:50%; transform:translate(-50%,-50%);
+    z-index:36; text-align:center; pointer-events:none;
+    animation:llPop .25s ease-out; }
+  .llTitle { font-size:30px; font-weight:800; color:#fecaca; text-shadow:0 3px 14px rgba(0,0,0,.55); }
+  .llHearts { font-size:24px; margin-top:10px; letter-spacing:4px; }
+  .llSub { font-size:13px; color:#cbd5e1; margin-top:12px; }
+  @keyframes llPop { from{ opacity:0; transform:translate(-50%,-50%) scale(.8);} to{ opacity:1; transform:translate(-50%,-50%) scale(1);} }
+
+  /* Krople */
+  .drop { position:absolute; z-index:10; top:0; left:0;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    width:88px; height:88px; font-weight:600; color:#ecfeff; line-height:1.05;
+    will-change:transform; padding:0 6px;
+    border-radius:50% 50% 50% 50% / 62% 62% 38% 38%;
+    border:1px solid rgba(186,230,253,.5);
+    background:radial-gradient(circle at 35% 28%, rgba(125,211,252,.95), rgba(37,99,235,.92));
+    box-shadow:0 4px 18px rgba(2,32,90,.55), inset 0 2px 6px rgba(255,255,255,.35); }
+  .drop.sun { color:#78350f; border:2px solid #f59e0b; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff3b0, #fbbf24 70%);
+    box-shadow:0 0 24px rgba(251,191,36,.6); }
+
+  /* Woda */
+  #water { position:absolute; bottom:0; left:0; right:0; height:60px; z-index:0;
+    background:linear-gradient(180deg, rgba(56,189,248,.45), rgba(14,116,170,.9));
+    border-top:2px solid rgba(186,230,253,.7); }
+
+  /* Klawiatura kalkulatorowa */
+  #keypad { position:absolute; bottom:0; left:0; right:0; z-index:30;
+    padding:10px 10px calc(10px + env(safe-area-inset-bottom)) 10px; }
+  #displayBar { position:relative; height:62px; border-radius:8px; background:#bfe3e0;
+    display:flex; align-items:center; justify-content:center; margin-bottom:8px; transition:background .12s; }
+  #display { font-size:30px; color:#123a40; font-weight:600; transition:color .12s; }
+  #displayBar.correct { background:#34d399; } #displayBar.correct #display { color:#0f172a; }
+  #displayBar.wrong { background:#fb7185; } #displayBar.wrong #display { color:#fff; }
+  #displayBar.frozen { background:#94a3b8; }
+  #clearBtn { position:absolute; right:14px; top:50%; transform:translateY(-50%);
+    width:42px; height:42px; border-radius:50%; border:2px solid #5d8a8f; background:transparent;
+    color:#5d8a8f; font-size:20px; line-height:1; cursor:pointer; touch-action:manipulation;
+    display:flex; align-items:center; justify-content:center; }
+  #clearBtn:active { background:rgba(93,138,143,.2); }
+  #pad { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  #pad button { padding:18px 0; font-size:25px; border:none; border-radius:4px;
+    background:#235058; color:#74c7e8; cursor:pointer; font-family:inherit;
+    touch-action:manipulation; -webkit-user-select:none; user-select:none; }
+  #pad button:active { background:#2e6770; }
+  #pad button.enter { grid-column:span 2; background:#0f3138; color:#74c7e8; font-size:21px; font-weight:600; letter-spacing:1px; }
+  #pad button.zero { background:#0f3138; }
+  #hint { font-size:11px; color:#94a3b8; text-align:center; margin-top:6px; }
+
+  /* Ekrany */
+  .overlay { position:absolute; inset:0; z-index:40; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; padding:22px 26px; overflow-y:auto; }
+  #gameover { background:rgba(2,6,23,.72); backdrop-filter:blur(4px); }
+  .emoji { font-size:46px; margin-bottom:4px; }
+  h1 { font-size:26px; color:#cffafe; letter-spacing:-.5px; }
+  .group { width:100%; margin-top:16px; }
+  .glabel { font-size:12px; color:#93c5fd; text-transform:uppercase; letter-spacing:1px; margin-bottom:7px; }
+  .seg { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
+  .seg button { padding:9px 14px; border:1px solid rgba(125,211,252,.35); border-radius:999px;
+    background:transparent; color:#cbd5e1; font-size:14px; cursor:pointer; font-family:inherit;
+    touch-action:manipulation; }
+  .seg button.sel { background:#22d3ee; color:#0f172a; border-color:#22d3ee; font-weight:600; }
+  .estHint { font-size:11px; color:#94a3b8; margin-top:6px; min-height:14px; }
+  .big { font-size:40px; color:#67e8f9; margin-top:14px; }
+  .sub { color:#94a3b8; font-size:13px; margin-top:4px; }
+  .btn { margin-top:22px; padding:13px 38px; border:none; border-radius:999px;
+    background:#22d3ee; color:#0f172a; font-weight:600; font-size:18px; cursor:pointer; touch-action:manipulation; }
+  .btn:active { background:#67e8f9; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div id="area">
+  <div id="modeLabel" class="hidden"></div>
+  <div id="hud" class="hidden">
+    <div id="score" class="mono">0</div>
+    <div id="lives"></div>
+  </div>
+  <div id="water" class="hidden"></div>
+
+  <!-- Komunikat po utracie życia -->
+  <div id="lifeLost" class="hidden">
+    <div class="llTitle">Tracisz życie!</div>
+    <div class="llHearts" id="llHearts"></div>
+    <div class="llSub">Nowe krople za chwilę…</div>
+  </div>
+
+  <div id="keypad" class="hidden">
+    <div id="displayBar">
+      <span id="display" class="mono"></span>
+      <button id="clearBtn" aria-label="Wyczyść">✕</button>
+    </div>
+    <div id="pad"></div>
+    <div id="hint"></div>
+  </div>
+
+  <!-- Menu z ustawieniami (jak u Chenga) -->
+  <div id="menu" class="overlay">
+    <div class="emoji">💧</div>
+    <h1>Raindrops</h1>
+
+    <div class="group">
+      <div class="glabel">Tryb</div>
+      <div class="seg" id="segAccuracy">
+        <button data-v="precise" class="sel">Dokładny</button>
+        <button data-v="estimation">Szacowanie</button>
+      </div>
+      <div class="estHint" id="estHint"></div>
+    </div>
+
+    <div class="group">
+      <div class="glabel">Działania</div>
+      <div class="seg" id="segType">
+        <button data-v="add">+</button>
+        <button data-v="sub">−</button>
+        <button data-v="mul">×</button>
+        <button data-v="div">÷</button>
+        <button data-v="pct">%</button>
+        <button data-v="random" class="sel">Miks</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="glabel">Poziom</div>
+      <div class="seg" id="segDiff">
+        <button data-v="easy">Łatwy</button>
+        <button data-v="medium" class="sel">Średni</button>
+        <button data-v="hard">Trudny</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="glabel">Przyspieszanie kropli</div>
+      <div class="seg" id="segAccel">
+        <button data-v="on" class="sel">Włączone</button>
+        <button data-v="off">Wyłączone</button>
+      </div>
+    </div>
+
+    <button class="btn" id="startBtn">Start</button>
+    <div class="sub" id="menuBest"></div>
+    <div class="sub" style="margin-top:14px;opacity:.75;">Wskazówka: w Safari <b>Udostępnij → Do ekranu początkowego</b>, żeby grać na pełnym ekranie jak z apki.</div>
+  </div>
+
+  <div id="gameover" class="overlay hidden">
+    <div class="emoji">🌊</div>
+    <h1 style="font-size:24px">Koniec gry</h1>
+    <div class="big mono" id="finalScore">0</div>
+    <div class="sub" id="bestScore"></div>
+    <button class="btn" id="againBtn">Zagraj jeszcze raz</button>
+    <button class="btn" id="menuBtn" style="background:transparent;color:#93c5fd;border:1px solid #93c5fd;margin-top:10px;">Zmień ustawienia</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// PARAMETRY OGÓLNE — tu zmieniasz balans
+// ============================================================
+const CONFIG = {
+  speedPerCorrect: 2.5,     // przyspieszanie po poprawnej (delikatne, by nie degenerowało w stukanie)
+  speedDropPerMiss: 5,
+  minFallSpeed: 18, maxFallSpeed: 140,
+  spawnIntervalMin: 1100, spawnRampPerCorrect: 40,
+  livesAllowed: 3, pointsPerCorrect: 500,
+  wrongFreezeThreshold: 3, freezeMs: 1500,
+  sunChance: 0.06,
+  estTolerance: 0.20,       // ±20% w trybie szacowania (reguła Chenga)
+  lifeLostPauseMs: 1400,    // pauza po utracie życia
+};
+
+// Presety poziomów: prędkość spadania + liczba kropli naraz + odstęp spawnu.
+// Trudniej = wolniej i mniej naraz, żeby był czas POLICZYĆ, nie tylko stukać.
+const DIFF = {
+  easy:   { fall:40, maxConc:3, spawnStart:2300 },
+  medium: { fall:32, maxConc:3, spawnStart:2700 },
+  hard:   { fall:24, maxConc:2, spawnStart:3300 },
+};
+
+let settings = { accuracy:"precise", types:["add","sub","mul","div","pct"], difficulty:"medium", accelerate:true };
+
+const rnd = (a,b)=> Math.floor(Math.random()*(b-a+1))+a;
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+
+// ============================================================
+// GENERATOR ZADAŃ — poziom Chenga (case interview math)
+// answer = dokładny wynik liczbowy (w 'precise' zawsze całkowity)
+// ============================================================
+function makeProblem(){
+  let type = pick(settings.types.length ? settings.types : ["add","sub","mul","div","pct"]);
+  const d = settings.difficulty;
+  const est = settings.accuracy==="estimation";
+
+  if(type==="add"){
+    const r = d==="easy"?[10,99]:d==="medium"?[100,999]:[1000,9999];
+    const a=rnd(r[0],r[1]), b=rnd(r[0],r[1]);
+    return { text:`${a} + ${b}`, answer:a+b };
+  }
+  if(type==="sub"){
+    const r = d==="easy"?[10,99]:d==="medium"?[100,999]:[1000,9999];
+    let a=rnd(r[0],r[1]), b=rnd(r[0],r[1]); if(b>a){const t=a;a=b;b=t;}
+    return { text:`${a} − ${b}`, answer:a-b };
+  }
+  if(type==="mul"){
+    let a,b;
+    if(est){ // estymacja: brzydsze, większe liczby
+      if(d==="easy"){ a=rnd(12,29); b=rnd(4,9); }
+      else if(d==="medium"){ a=rnd(13,49); b=rnd(13,29); }
+      else { a=rnd(120,899); b=rnd(110,899); }
+    } else {
+      if(d==="easy"){ a=rnd(12,29); b=rnd(3,9); }
+      else if(d==="medium"){ a=rnd(12,49); b=rnd(11,29); }
+      else { a=rnd(120,499); b=rnd(11,39); }
+    }
+    return { text:`${a} × ${b}`, answer:a*b };
+  }
+  if(type==="div"){
+    if(est){ // Szacowanie: brzydkie liczby, wynik może być ułamkiem (liczy się ±20%)
+      let a,b;
+      if(d==="easy"){ a=rnd(80,400); b=rnd(3,9); }
+      else if(d==="medium"){ a=rnd(400,3000); b=rnd(7,29); }
+      else { a=rnd(3000,40000); b=rnd(11,89); }
+      return { text:`${a} ÷ ${b}`, answer:a/b };
+    }
+    // Dokładny: ZAWSZE czyste dzielenie (wynik całkowity)
+    let q,div;
+    if(d==="easy"){ q=rnd(3,12); div=rnd(3,9); }
+    else if(d==="medium"){ q=rnd(6,40); div=rnd(4,12); }
+    else { q=rnd(12,99); div=rnd(7,29); }
+    return { text:`${q*div} ÷ ${div}`, answer:q };
+  }
+  // procenty
+  if(est){ // Szacowanie: dowolne, wynik może być ułamkiem
+    const p=rnd(3,97), base=rnd(50,5000);
+    return { text:`${p}% z ${base}`, answer:p*base/100 };
+  }
+  // Dokładny: wynik ZAWSZE całkowity (p = wielokrotność 5, baza = wielokrotność 20)
+  {
+    const p = d==="easy"?pick([10,20,25,50]):d==="medium"?pick([5,15,30,40,60,75]):pick([5,15,35,45,65,85]);
+    const baseRange = d==="easy"?[3,20]:d==="medium"?[5,45]:[10,90];
+    const base = rnd(baseRange[0],baseRange[1])*20;
+    return { text:`${p}% z ${base}`, answer:p*base/100 };
+  }
+}
+
+// ============================================================
+// Elementy
+const area=document.getElementById("area");
+const hud=document.getElementById("hud");
+const scoreEl=document.getElementById("score");
+const livesEl=document.getElementById("lives");
+const water=document.getElementById("water");
+const keypad=document.getElementById("keypad");
+const displayEl=document.getElementById("display");
+const displayBar=document.getElementById("displayBar");
+const padEl=document.getElementById("pad");
+const modeLabel=document.getElementById("modeLabel");
+const menu=document.getElementById("menu");
+const menuBest=document.getElementById("menuBest");
+const gameover=document.getElementById("gameover");
+const finalScore=document.getElementById("finalScore");
+const bestScore=document.getElementById("bestScore");
+const estHint=document.getElementById("estHint");
+const lifeLost=document.getElementById("lifeLost");
+const llHearts=document.getElementById("llHearts");
+
+let drops=[], score=0, lives=CONFIG.livesAllowed, speed=DIFF.medium.fall;
+let input="", wrongStreak=0, frozen=false, nextId=1, best=0;
+let lastSpawn=0, lastTime=0, raf=0, running=false, missLine=0;
+
+const fmt=n=>n.toLocaleString("pl-PL");
+
+function renderLives(){
+  livesEl.innerHTML="";
+  for(let i=0;i<CONFIG.livesAllowed;i++){
+    const s=document.createElement("span"); s.textContent="💧";
+    if(i>=lives) s.className="gone"; livesEl.appendChild(s);
+  }
+}
+
+const TYPE_LABEL={add:"+",sub:"−",mul:"×",div:"÷",pct:"%"};
+const DIFF_LABEL={easy:"Łatwy",medium:"Średni",hard:"Trudny"};
+const ALL_OPS=["add","sub","mul","div","pct"];
+function typeLabel(){
+  return settings.types.length===ALL_OPS.length ? "Miks" : settings.types.map(t=>TYPE_LABEL[t]).join(" ");
+}
+
+function start(){
+  drops.forEach(d=>d.el&&d.el.remove()); drops=[];
+  score=0; lives=CONFIG.livesAllowed; speed=DIFF[settings.difficulty].fall;
+  input=""; wrongStreak=0; frozen=false; lastSpawn=0; lastTime=0; running=true;
+  scoreEl.textContent="0"; displayEl.textContent=""; displayBar.className="";
+  modeLabel.textContent = `${typeLabel()} · ${DIFF_LABEL[settings.difficulty]} · ${settings.accuracy==="estimation"?"±20%":"dokładnie"}`;
+  renderLives();
+  menu.classList.add("hidden"); gameover.classList.add("hidden"); lifeLost.classList.add("hidden");
+  hud.classList.remove("hidden"); water.classList.remove("hidden");
+  keypad.classList.remove("hidden"); modeLabel.classList.remove("hidden");
+  // Linia utraty życia = górna krawędź paska wyniku (kropla w całości za nim = miss)
+  const aRect=area.getBoundingClientRect(), bRect=displayBar.getBoundingClientRect();
+  missLine = bRect.top - aRect.top;
+  raf=requestAnimationFrame(loop);
+}
+
+function endGame(){
+  running=false; cancelAnimationFrame(raf);
+  best=Math.max(best,score);
+  finalScore.textContent=fmt(score);
+  bestScore.textContent="Rekord ("+modeLabel.textContent+"): "+fmt(best);
+  hud.classList.add("hidden"); water.classList.add("hidden");
+  keypad.classList.add("hidden"); modeLabel.classList.add("hidden");
+  gameover.classList.remove("hidden");
+}
+
+function spawnInterval(){
+  return Math.max(CONFIG.spawnIntervalMin, DIFF[settings.difficulty].spawnStart - score*(CONFIG.spawnRampPerCorrect/CONFIG.pointsPerCorrect));
+}
+function maxConcurrent(){ return DIFF[settings.difficulty].maxConc; }
+
+function fontFor(text){ const n=text.length; return n<=6?16:n<=9?13:11; }
+
+function addDrop(){
+  const isSun=Math.random()<CONFIG.sunChance && drops.length>0;
+  const p=makeProblem();
+  const el=document.createElement("div");
+  el.className="drop"+(isSun?" sun":"");
+  el.textContent=p.text;
+  el.style.fontSize=fontFor(p.text)+"px";
+  el.style.left=rnd(11,80)+"%";
+  el.style.transform="translate(-50%, -50px)";
+  area.appendChild(el);
+  drops.push({ id:nextId++, text:p.text, answer:p.answer, x:0, y:-50, sun:isSun, el });
+}
+
+function loop(t){
+  if(!lastTime) lastTime=t;
+  const dt=Math.min(50,t-lastTime); lastTime=t;
+  if(t-lastSpawn>spawnInterval() && drops.length<maxConcurrent()){ lastSpawn=t; addDrop(); }
+
+  // przesuń krople i sprawdź, czy któraś schowała się za paskiem
+  let crossed=false;
+  drops.forEach(d=>{
+    d.y += speed*dt/1000;
+    if(d.y>=missLine) crossed=true;
+    else d.el.style.transform="translate(-50%, "+d.y+"px)";
+  });
+
+  if(crossed){ loseLife(); return; }   // zawsze -1 życie i pauza, niezależnie ile kropli minęło
+  if(running) raf=requestAnimationFrame(loop);
+}
+
+function loseLife(){
+  running=false; cancelAnimationFrame(raf);
+  lives-=1; renderLives();
+  if(settings.accelerate) speed=Math.max(CONFIG.minFallSpeed, speed-CONFIG.speedDropPerMiss);
+  drops.forEach(d=>d.el.remove()); drops=[];   // wszystkie widoczne krople znikają
+  input=""; setDisplay();
+
+  if(lives<=0){ endGame(); return; }
+
+  // komunikat + pauza, po której pojawią się nowe krople
+  llHearts.textContent="💧".repeat(lives);
+  lifeLost.classList.remove("hidden");
+  setTimeout(()=>{
+    lifeLost.classList.add("hidden");
+    lastTime=0; lastSpawn=performance.now()-spawnInterval()+600; // pierwsza nowa kropla ~0,6s po wznowieniu
+    running=true;
+    raf=requestAnimationFrame(loop);
+  }, CONFIG.lifeLostPauseMs);
+}
+
+function setDisplay(){ displayEl.textContent = frozen?"⏳":input; }
+function flash(type){ displayBar.className=type; setTimeout(()=>{ displayBar.className=frozen?"frozen":""; setDisplay(); },220); }
+function typeDigit(d){ if(!running||frozen) return; if(input.length<9){ input+=d; setDisplay(); } }
+function backspace(){ if(!running||frozen) return; input=input.slice(0,-1); setDisplay(); }
+function clearAll(){ if(!running||frozen) return; input=""; setDisplay(); }
+
+function matches(d,val){
+  if(settings.accuracy==="estimation"){
+    return Math.abs(val - d.answer) <= CONFIG.estTolerance * Math.abs(d.answer);
+  }
+  return d.answer === val;
+}
+
+function submit(){
+  if(!running || frozen || input==="") return;
+  const val=parseInt(input,10); input="";
+  const sunHit=drops.find(d=>d.sun && matches(d,val));
+  if(sunHit){
+    drops.forEach(d=>d.el.remove()); drops=[];
+    score+=CONFIG.pointsPerCorrect;
+    if(settings.accelerate) speed=Math.min(CONFIG.maxFallSpeed, speed+CONFIG.speedPerCorrect);
+    wrongStreak=0; scoreEl.textContent=fmt(score); flash("correct"); return;
+  }
+  const hit=drops.filter(d=>matches(d,val));
+  if(hit.length>0){
+    const ids=new Set(hit.map(d=>d.id));
+    drops=drops.filter(d=>{ if(ids.has(d.id)){ d.el.remove(); return false; } return true; });
+    score+=CONFIG.pointsPerCorrect*hit.length;
+    if(settings.accelerate) speed=Math.min(CONFIG.maxFallSpeed, speed+CONFIG.speedPerCorrect);
+    wrongStreak=0; scoreEl.textContent=fmt(score); flash("correct");
+  } else {
+    wrongStreak++; flash("wrong");
+    if(wrongStreak>=CONFIG.wrongFreezeThreshold){
+      wrongStreak=0; frozen=true; displayBar.className="frozen"; setDisplay();
+      setTimeout(()=>{ frozen=false; displayBar.className=""; setDisplay(); }, CONFIG.freezeMs);
+    }
+  }
+  setDisplay();
+}
+
+// Klawiatura fizyczna (Mac)
+window.addEventListener("resize", ()=>{
+  if(!running) return;
+  const aRect=area.getBoundingClientRect(), bRect=displayBar.getBoundingClientRect();
+  missLine = bRect.top - aRect.top;
+});
+window.addEventListener("keydown", e=>{
+  if(!running) return;
+  if(e.key>="0"&&e.key<="9") typeDigit(e.key);
+  else if(e.key==="Backspace"){ e.preventDefault(); backspace(); }
+  else if(e.key==="Enter"){ e.preventDefault(); submit(); }
+});
+
+// Dotyk iOS: touchstart natychmiast, click tylko dla myszki
+function fastTap(el,fn){
+  let lastTouch=0;
+  el.addEventListener("touchstart",e=>{ e.preventDefault(); lastTouch=Date.now(); fn(); },{passive:false});
+  el.addEventListener("click",()=>{ if(Date.now()-lastTouch<700) return; fn(); });
+}
+
+// Numpad kalkulatorowy 7-8-9 / 4-5-6 / 1-2-3 / 0 + ENTER
+["7","8","9","4","5","6","1","2","3","0","ENTER"].forEach(k=>{
+  const b=document.createElement("button"); b.textContent=k;
+  if(k==="ENTER"){ b.className="enter"; fastTap(b,submit); }
+  else { if(k==="0") b.className="zero"; fastTap(b,()=>typeDigit(k)); }
+  padEl.appendChild(b);
+});
+fastTap(document.getElementById("clearBtn"),clearAll);
+
+// Segmentowane przyciski ustawień
+function selectSeg(id,val){
+  const box=document.getElementById(id);
+  box.querySelectorAll("button").forEach(x=>x.classList.toggle("sel", x.dataset.v===val));
+}
+function wireSeg(id,key,after){
+  const box=document.getElementById(id);
+  box.querySelectorAll("button").forEach(b=>{
+    fastTap(b,()=>{
+      box.querySelectorAll("button").forEach(x=>x.classList.remove("sel"));
+      b.classList.add("sel");
+      settings[key] = (b.dataset.v==="on"||b.dataset.v==="off") ? (b.dataset.v==="on") : b.dataset.v;
+      if(key==="accuracy") estHint.textContent = b.dataset.v==="estimation"
+        ? "Akceptowany wynik: ±20% od dokładnego. Trudniejsze liczby." : "";
+      if(after) after(b.dataset.v);
+    });
+  });
+}
+wireSeg("segAccuracy","accuracy");
+wireSeg("segDiff","difficulty",(v)=>{
+  // Trudny domyślnie bez przyspieszania (można zmienić); łatwy/średni z przyspieszaniem
+  const accel = v!=="hard";
+  settings.accelerate = accel;
+  selectSeg("segAccel", accel?"on":"off");
+});
+wireSeg("segAccel","accelerate");
+
+// Działania — wybór wielokrotny. Miks = wszystkie (osobny stan).
+const segType=document.getElementById("segType");
+function renderTypeSeg(){
+  const isMix = settings.types.length===ALL_OPS.length;
+  segType.querySelectorAll("button").forEach(b=>{
+    const v=b.dataset.v;
+    const on = v==="random" ? isMix : (!isMix && settings.types.includes(v));
+    b.classList.toggle("sel", on);
+  });
+}
+segType.querySelectorAll("button").forEach(b=>{
+  fastTap(b,()=>{
+    const v=b.dataset.v;
+    const isMix = settings.types.length===ALL_OPS.length;
+    if(v==="random"){
+      settings.types = ALL_OPS.slice();            // Miks = wszystkie, odznacza pojedyncze
+    } else if(isMix){
+      settings.types = [v];                         // z Miksu w pojedynczy wybór
+    } else {
+      const i=settings.types.indexOf(v);
+      if(i>=0) settings.types.splice(i,1); else settings.types.push(v);  // toggle
+      if(settings.types.length===0) settings.types = ALL_OPS.slice();    // nic = wróć do Miks
+    }
+    renderTypeSeg();
+  });
+});
+renderTypeSeg();
+
+fastTap(document.getElementById("startBtn"),start);
+fastTap(document.getElementById("againBtn"),start);
+fastTap(document.getElementById("menuBtn"),()=>{ gameover.classList.add("hidden"); menu.classList.remove("hidden"); });
+</script>
+</body>
+</html>
