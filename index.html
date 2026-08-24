@@ -25,11 +25,30 @@
   #hud { position:absolute; top:0; left:0; right:0; z-index:20;
     display:flex; align-items:center; justify-content:space-between;
     padding:12px 16px; color:#e2e8f0; }
-  #score { font-size:22px; color:#67e8f9; letter-spacing:-.5px; }
+  #pauseBtn { width:38px; height:38px; border-radius:10px; border:none;
+    background:rgba(255,255,255,.12); color:#e2e8f0; font-size:16px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; touch-action:manipulation; }
+  #pauseBtn:active { background:rgba(255,255,255,.25); }
+  #score { position:absolute; left:50%; top:12px; transform:translateX(-50%);
+    font-size:22px; color:#67e8f9; letter-spacing:-.5px; }
   #lives span { font-size:18px; transition:opacity .2s; }
   #lives span.gone { opacity:.18; }
-  #modeLabel { position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  #modeLabel { position:absolute; top:52px; left:50%; transform:translateX(-50%);
     z-index:20; font-size:12px; color:#93c5fd; letter-spacing:.3px; }
+
+  /* Menu pauzy */
+  #pauseMenu { position:absolute; inset:0; z-index:45; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:12px;
+    background:rgba(2,6,23,.78); backdrop-filter:blur(4px); }
+  #pauseMenu .ptitle { font-size:24px; color:#cffafe; font-weight:700; margin-bottom:8px; }
+  #pauseMenu button.pbtn { width:200px; padding:14px 0; border:none; border-radius:14px;
+    font-size:17px; font-weight:600; cursor:pointer; touch-action:manipulation; }
+  #pauseMenu .resume { background:#22d3ee; color:#0f172a; }
+  #pauseMenu .resume:active { background:#67e8f9; }
+  #pauseMenu .restart { background:rgba(255,255,255,.12); color:#e2e8f0; }
+  #pauseMenu .restart:active { background:rgba(255,255,255,.22); }
+  #pauseMenu .quit { background:transparent; color:#fca5a5; border:1px solid rgba(252,165,165,.4) !important; }
+  #pauseMenu .quit:active { background:rgba(252,165,165,.12); }
 
   /* Komunikat: utrata życia */
   #lifeLost { position:absolute; top:34%; left:50%; transform:translate(-50%,-50%);
@@ -107,10 +126,19 @@
 <div id="area">
   <div id="modeLabel" class="hidden"></div>
   <div id="hud" class="hidden">
+    <button id="pauseBtn" aria-label="Pauza">⏸</button>
     <div id="score" class="mono">0</div>
     <div id="lives"></div>
   </div>
   <div id="water" class="hidden"></div>
+
+  <!-- Menu pauzy -->
+  <div id="pauseMenu" class="hidden">
+    <div class="ptitle">Pauza</div>
+    <button class="pbtn resume" id="resumeBtn">Kontynuuj grę</button>
+    <button class="pbtn restart" id="restartBtn">Restart</button>
+    <button class="pbtn quit" id="quitBtn">Zakończ grę</button>
+  </div>
 
   <!-- Komunikat po utracie życia -->
   <div id="lifeLost" class="hidden">
@@ -296,10 +324,12 @@ const bestScore=document.getElementById("bestScore");
 const estHint=document.getElementById("estHint");
 const lifeLost=document.getElementById("lifeLost");
 const llHearts=document.getElementById("llHearts");
+const pauseBtn=document.getElementById("pauseBtn");
+const pauseMenu=document.getElementById("pauseMenu");
 
 let drops=[], score=0, lives=CONFIG.livesAllowed, speed=DIFF.medium.fall;
 let input="", wrongStreak=0, frozen=false, nextId=1, best=0;
-let lastSpawn=0, lastTime=0, raf=0, running=false, missLine=0;
+let lastSpawn=0, lastTime=0, raf=0, running=false, missLine=0, paused=false;
 
 const fmt=n=>n.toLocaleString("pl-PL");
 
@@ -321,11 +351,12 @@ function typeLabel(){
 function start(){
   drops.forEach(d=>d.el&&d.el.remove()); drops=[];
   score=0; lives=CONFIG.livesAllowed; speed=DIFF[settings.difficulty].fall;
-  input=""; wrongStreak=0; frozen=false; lastSpawn=0; lastTime=0; running=true;
+  input=""; wrongStreak=0; frozen=false; lastSpawn=0; lastTime=0; running=true; paused=false;
   scoreEl.textContent="0"; displayEl.textContent=""; displayBar.className="";
   modeLabel.textContent = `${typeLabel()} · ${DIFF_LABEL[settings.difficulty]} · ${settings.accuracy==="estimation"?"±20%":"dokładnie"}`;
   renderLives();
   menu.classList.add("hidden"); gameover.classList.add("hidden"); lifeLost.classList.add("hidden");
+  pauseMenu.classList.add("hidden");
   hud.classList.remove("hidden"); water.classList.remove("hidden");
   keypad.classList.remove("hidden"); modeLabel.classList.remove("hidden");
   // Linia utraty życia = górna krawędź paska wyniku (kropla w całości za nim = miss)
@@ -342,6 +373,33 @@ function endGame(){
   hud.classList.add("hidden"); water.classList.add("hidden");
   keypad.classList.add("hidden"); modeLabel.classList.add("hidden");
   gameover.classList.remove("hidden");
+}
+
+function pauseGame(){
+  if(!running || paused) return;
+  paused=true; running=false;
+  cancelAnimationFrame(raf);
+  pauseMenu.classList.remove("hidden");
+}
+
+function resumeGame(){
+  if(!paused) return;
+  paused=false; running=true;
+  pauseMenu.classList.add("hidden");
+  lastTime=0;                 // zeruj dt, by uniknąć skoku po pauzie
+  lastSpawn += 200;           // krótki odstęp zanim spadnie kolejna kropla
+  raf=requestAnimationFrame(loop);
+}
+
+function quitGame(){
+  paused=false; running=false;
+  cancelAnimationFrame(raf);
+  drops.forEach(d=>d.el&&d.el.remove()); drops=[];
+  pauseMenu.classList.add("hidden");
+  hud.classList.add("hidden"); water.classList.add("hidden");
+  keypad.classList.add("hidden"); modeLabel.classList.add("hidden");
+  gameover.classList.add("hidden");
+  menu.classList.remove("hidden");
 }
 
 function spawnInterval(){
@@ -448,6 +506,7 @@ window.addEventListener("resize", ()=>{
   missLine = bRect.top - aRect.top;
 });
 window.addEventListener("keydown", e=>{
+  if(e.key==="Escape"){ paused?resumeGame():pauseGame(); return; }
   if(!running) return;
   if(e.key>="0"&&e.key<="9") typeDigit(e.key);
   else if(e.key==="Backspace"){ e.preventDefault(); backspace(); }
@@ -528,6 +587,11 @@ renderTypeSeg();
 fastTap(document.getElementById("startBtn"),start);
 fastTap(document.getElementById("againBtn"),start);
 fastTap(document.getElementById("menuBtn"),()=>{ gameover.classList.add("hidden"); menu.classList.remove("hidden"); });
+
+fastTap(pauseBtn, pauseGame);
+fastTap(document.getElementById("resumeBtn"), resumeGame);
+fastTap(document.getElementById("restartBtn"), start);
+fastTap(document.getElementById("quitBtn"), quitGame);
 </script>
 </body>
 </html>
